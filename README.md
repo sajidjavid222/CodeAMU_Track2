@@ -6,6 +6,7 @@ Osama Zaheer (Binary Semantics), Ahraz Shamim (Vecmocon Technologies)
 
 **Final standing: 1st place, Phase 2 (final) leaderboard — Combined 26.4363** (`submission_t2_phase2_bankpost_p2mix.zip`).
 Technical report: [`docs/CodeAMU_track_2_1.pdf`](docs/CodeAMU_track_2_1.pdf).
+Companion Track 1 system (event windows and routing used as inputs here): <https://github.com/sajidjavid222/CodeAMU_Track1>.
 
 ## System overview
 
@@ -105,7 +106,7 @@ python inference/infer.py --input_dir /path/to/phase2/audio --output_dir /path/t
 * `--input_dir`: noisy test clips, 16 kHz mono WAV, one file per clip (`<clip_id>.wav`).
 * `--t1_predictions`: Track 1 noise-event timestamps, one JSON object per line
   `{"clip_id": ..., "events": [{"onset": s, "offset": s}, ...]}` — produced for the Phase 2 test set by the CodeAMU
-  Track 1 system (repository `CodeAMU_Track1`, file shipped in `inputs/phase2/`).
+  Track 1 system ([CodeAMU_Track1](https://github.com/sajidjavid222/CodeAMU_Track1), file shipped in `inputs/phase2/`).
 * `--route`: `{clip_id: true|false}` synthetic routing from the Track 1 synthetic/natural routers (shipped).
 
 Both input files are regenerated from the audio alone by the Track 1 repository:
