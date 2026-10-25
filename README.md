@@ -151,3 +151,8 @@ the fine-tuning mixer draws from).
 * Every clip is processed by the enhancer; the bank subtraction is an additional step for clips in which matched
   copies of pool recordings are found.
 * `transcripts.jsonl` is always produced by the mandated SraVaani-1.0 run on the submitted WAVs.
+
+## License
+
+Code and model weights: MIT (see `LICENSE`). `checkpoints/noise_bank.npz` is derived from the official IndoML 2026
+validation release.
