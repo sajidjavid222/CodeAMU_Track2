@@ -1,0 +1,35 @@
+# CodeAMU - IndoML 2026 Track 2 final system (Phase 2 submission, Combined 26.4363)
+
+enhancer:                         # checkpoints/t2_model_{0,1,2}.pt, 3-member ensemble
+  type: TF-DPCRN                  # complex-spectrum U-Net encoder/decoder + dual-path (intra/inter) LSTM + attention
+  n_fft: 512
+  hop: 128
+  window: hann
+  encoder_channels: [48, 64, 96, 128]
+  dual_path_blocks: 5
+  hidden: 128
+  attention: true
+  conditioning: per-frame noise-event indicator from the event windows (Track 1 timestamps)
+  parameters_per_member_m: 3.9
+  ensemble: polarity-aligned mean of the three members' waveforms
+  post: blend a_in=1.0 inside windows / a_out=0.90 outside, RMS restored to the input level, peak guard 0.99
+
+windows:
+  source: Track 1 predictions.jsonl (inputs/phase2/track1_predictions.jsonl)
+  pad_sec: 0.10
+
+noise_bank:                       # checkpoints/noise_bank.npz (rebuildable from the official validation set)
+  source: official validation set, noise = mixture - clean at the labelled event timestamps
+  recordings: 1181                # from 2,213 labelled events after de-duplication
+  match_rate_hz: 8000
+  whitening: pre-emphasis 0.97
+  candidate_floor_cor: 0.20
+  subtract_min_cor: 0.45
+  placement_refine_samples: 32
+  gain: non-negative least squares on double pre-emphasised signals
+  clips: those routed synthetic by the Track 1 router (inputs/phase2/route.json)
+  post_cleaning: enhancer pass over (subtracted spans +-0.10 s) + Track 1 windows, a_out = 0.0
+
+asr:
+  model: ARTPARK-IISc/SraVaani-1.0   # mandated, used unchanged for transcripts.jsonl
+  revision: f5dd5358325a5208775b91dad98918e079ea2b27

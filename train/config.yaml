@@ -1,0 +1,43 @@
+# CodeAMU - IndoML 2026 Track 2: training configuration of the final enhancer ensemble
+# (checkpoints/t2_model_{0,1,2}.pt). Every stage below is exactly what produced the submitted models;
+# the shell commands are in scripts/train_all.sh. All stages: TF-DPCRN, see configs/model_config.yaml.
+
+stage0_pools:            # data pools for every later stage (train/track2_train.py, first part)
+  script: train/track2_train.py
+  env: {T2_BUDGET: omni, T2_POOLS_ONLY: "1"}
+  pools:
+    offc/offn: official validation synthetic pairs (clean / noise), TRAIN fold only (filename-prefix group, md5 % 5 != 0)
+    event: noise bursts cut from the train-fold official noise + gold-tier labelled noise events (Vaani-Noise-Event-Dataset)
+    floor: low-energy non-speech floors (Vaani, official train fold, gold) + residual floors harvested from <= 400
+           natural train-fold validation clips (noisy - enhanced, outside noise windows)
+    speech: Vaani speech beds (ARTPARK-IISc/Vaani), gclean: gold-tier clips outside labelled noise events
+
+stage1_base:             # three base members, one per 6 h session (mode F = organiser-like mixtures dominate)
+  script: train/track2_train.py
+  env: {T2_BUDGET: omni, T2_POOLS_READY: "1", T2_MODE: F}
+  per_member: {train_min: 185, polish_mode: P, polish_min: 25, batch_size: 24, lr: 1.0e-3, polish_lr: 2.0e-4,
+               seed: "2026 + 17 * k"}
+  chaining: member 0 alone (T2_MODE=F); member 1 with T2_KEEP=<member 0> T2_N_MODELS=2; member 2 with
+            T2_EVAL_ONLY=<member 0>,<member 1> T2_EVAL_SCORES=22.822,22.683 T2_TRAIN_MORE=1 (seed 2026 + 17k)
+  loss: -SI-SDR + 0.1 * multi-resolution STFT (512/128, 1024/256, 256/64) / 3 + 0.3 * log-mel L1 (128 mel, 25 ms / 10 ms)
+  held_out_si_sdr_db: [22.822, 22.683, 22.558]      # 138 held-out official synthetic pairs, ensemble 23.32 dB
+  output: work/t2work/export
+
+# ---- Phase 2 profile fine-tuning (train/t2_finetune_p2.py). Mixtures follow the Phase 2 test statistics measured on
+# 100 confident-synthetic clips: 0.47 noise events/s, local SNR N(-9.7, 4.0) dB, 10 % noise over digital silence,
+# mixture level -22.8 dBFS, noise copies randomly altered (FIR tilt, +-0.4 % resample, -35 dB hiss).
+# Window augmentation: drop all 10 %, drop event 10 %, edge jitter 80 ms, false window 20 %, pad 0.10 s.
+# Checkpoint selection (every 10 min, EMA weights): stages 2-4 used SI-SDR on the first 40 p2h mixtures
+# (T2FT_SELECT=p2h); stage 5 used the leaderboard fit 1.53*SI-SDR(off0 first 70) + 0.27*SI-SDR(p2h first 40).
+stage2_p2ft:
+  env: {T2FT_INIT: work/t2work/export, T2FT_OUT: work/t2_p2ft, T2FT_MIN: "40", T2FT_LR: "2e-4", T2FT_WMEL: "0.3", T2FT_SELECT: p2h}
+stage3_p2ft_cont:
+  env: {T2FT_INIT: work/t2_p2ft/export, T2FT_OUT: work/t2_p2ft_cont, T2FT_MIN: "45", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: p2h}
+stage4_p2ft_long:        # one job per member (T2FT_ONLY=0/1/2)
+  env: {T2FT_INIT: work/t2_p2ft_cont/export, T2FT_OUT: work/t2_p2ft_long, T2FT_MIN: "300", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: p2h}
+stage5_p2mix:            # FINAL models; one job per member, real organiser train-fold pairs mixed into the batches
+  env: {T2FT_INIT: work/t2_p2ft_long/export, T2FT_OUT: work/t2_p2mix, T2FT_MIN: "240", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: fit}
+  per_member: {T2FT_ONLY: [0, 1, 2], T2FT_REAL: [0.3, 0.5, 0.3]}
+  common: {batch_size: 16, crop_sec: 8.0, optimizer: AdamW(wd 1e-4, betas 0.9/0.98), warmup_steps: 300,
+           schedule: cosine to 3 %, ema: "min(0.999, (1 + step) / (10 + step))", grad_clip: 5.0, amp: bf16}
+  output: work/t2_p2mix/export -> checkpoints/t2_model_{0,1,2}.pt

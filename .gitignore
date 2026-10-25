@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# run directories and training outputs
+work/
+output/

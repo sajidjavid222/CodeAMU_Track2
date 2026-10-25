@@ -1,0 +1,10 @@
+# Python 3.10.12, CUDA 12.8 (cu128 wheels: pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0)
+torch==2.11.0
+numpy==2.2.6
+scipy==1.15.3
+soundfile==0.14.0
+librosa==0.11.0
+transformers==5.15.0
+sentencepiece==0.2.2
+huggingface_hub==1.27.0
+webrtcvad-wheels==2.0.14
