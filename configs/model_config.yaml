@@ -1,4 +1,4 @@
-# CodeAMU - IndoML 2026 Track 2 final system (Phase 2 submission bankpost_asrbt, Codabench ID 987258, Combined 26.4894)
+# CodeAMU - IndoML 2026 Track 2 final system (Phase 2 final submission, Codabench ID 987258, Combined 26.4894)
 
 enhancer:                         # checkpoints/enhancer/<name>/t2_model_*.pt, chosen with infer.py --enhancer
   final: asrbt                    # default of inference/infer.py --enhancer
@@ -20,7 +20,7 @@ windows:
   source: Track 1 predictions.jsonl (inputs/phase2/track1_predictions.jsonl)
   pad_sec: 0.10
 
-noise_bank:                       # checkpoints/noise_bank.npz (rebuildable from the official validation set)
+reference_noise:                  # checkpoints/reference_noise.npz (rebuildable from the official validation set)
   source: official validation set, noise = mixture - clean at the labelled event timestamps
   recordings: 1181                # from 2,213 labelled events after de-duplication
   match_rate_hz: 8000

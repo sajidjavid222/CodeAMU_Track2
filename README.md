@@ -5,8 +5,7 @@ Osama Zaheer (Binary Semantics), Ahraz Shamim (Vecmocon Technologies)
 **Primary contact:** Sajid Javid — sajidj@iiitd.ac.in
 
 **Final standing: 1st place, Phase 2 (final) leaderboard — Combined 26.4894** (SI-SDR 20.3393 dB; ΔWER 6.1501 points:
-synthetic 18.0882, natural 0.5232; transcript audit passed), submission `submission_t2_phase2_bankpost_asrbt.zip`
-(Codabench ID 987258).
+synthetic 18.0882, natural 0.5232; transcript audit passed), Codabench submission ID 987258.
 Technical report: [`docs/CodeAMU_track_2_1.pdf`](docs/CodeAMU_track_2_1.pdf).
 Companion Track 1 system (event windows and routing used as inputs here): <https://github.com/sajidjavid222/CodeAMU_Track1>.
 
@@ -28,7 +27,7 @@ the enhancer then runs over those spans and the Track 1 windows (disclosed in th
   weights) on our own mixtures and the official training-fold pairs, fine-tuned on mixtures that follow the
   Phase 2 test statistics, and finally continued for 40 min with a heavier log-mel loss (see `train/config.yaml`).
 * **Validation-derived noise (pre-step)** — on clips routed synthetic, noise recordings that also occur in the
-  official validation release (mixture − clean at the labelled timestamps; `checkpoints/noise_bank.npz`) are located
+  official validation release (mixture − clean at the labelled timestamps; `checkpoints/reference_noise.npz`) are located
   by cross-correlation and removed before enhancement; the enhancer cleans what remains.
 * **ASR** — the mandated `ARTPARK-IISc/SraVaani-1.0`, unchanged, writes `transcripts.jsonl` from the enhanced WAVs.
 
@@ -40,8 +39,8 @@ CodeAMU_Track2/
 ├── requirements_train.txt / requirements_inference.txt
 ├── inference/
 │   ├── infer.py                    # entry point: validation-noise pre-step -> enhancement + ASR
-│   ├── bank.py                     # validation noise recordings (npz or validation folder) + matcher
-│   ├── bank_subtract.py            # removal of matched copies (pre-step)
+│   ├── refnoise.py                 # validation noise recordings (npz or validation folder) + matcher
+│   ├── refnoise_subtract.py        # removal of matched copies (pre-step)
 │   └── enhance_and_transcribe.py   # TF-DPCRN ensemble, event-window conditioning, post-processing, SraVaani ASR
 ├── train/
 │   ├── track2_train.py             # data pools + base TF-DPCRN members (curriculum modes, polish stage)
@@ -53,7 +52,7 @@ CodeAMU_Track2/
 │   ├── enhancer/p2mix/             # 3-member TF-DPCRN ensemble (stage 5; 15.6 MB per member)
 │   ├── enhancer/asrbt/             # FINAL: the same members after stage 6 (member 1 unchanged)
 │   ├── enhancer/sisdr5/            # the 5 distinct models of p2mix + asrbt
-│   └── noise_bank.npz              # validation noise recordings for the pre-step (75 MB)
+│   └── reference_noise.npz         # validation noise recordings for the pre-step (75 MB)
 ├── configs/model_config.yaml       # architecture + inference settings
 ├── inputs/phase2/
 │   ├── track1_predictions.jsonl    # Track 1 event timestamps for the Phase 2 test clips (CodeAMU Track 1 system)
@@ -101,7 +100,7 @@ bash scripts/run_inference.sh /path/to/phase2/audio /path/to/output
 python inference/infer.py --input_dir /path/to/phase2/audio --output_dir /path/to/output \
     --t1_predictions inputs/phase2/track1_predictions.jsonl --route inputs/phase2/route.json \
     [--enhancer p2mix|asrbt|sisdr5] \
-    [--val_dir /path/to/validation]      # optional: rebuild noise_bank.npz from the official validation folder
+    [--val_dir /path/to/validation]      # optional: rebuild reference_noise.npz from the official validation folder
 ```
 
 `--enhancer` picks the ensemble (`ENHANCER=...` for `run_inference.sh`); the default `asrbt` is the ranked final.
@@ -109,9 +108,9 @@ Each ensemble reproduces one Phase 2 submission:
 
 | `--enhancer` | Models | Reproduces | Leaderboard |
 |---|---|---|---|
-| `asrbt` (default) | stage 6 members 0-2 | `submission_t2_phase2_bankpost_asrbt.zip` (ID 987258) | **26.4894, final** |
-| `sisdr5` | stage 5 members 0-2 + stage 6 members 0, 2 | `submission_t2_phase2_bankpost_sisdr.zip` (ID 987250) | 26.4582 |
-| `p2mix` | stage 5 members 0-2 | `submission_t2_phase2_bankpost_p2mix.zip` (ID 985438) | 26.4363 |
+| `asrbt` (default) | stage 6 members 0-2 | Codabench submission 987258 | **26.4894, final** |
+| `sisdr5` | stage 5 members 0-2 + stage 6 members 0, 2 | Codabench submission 987250 | 26.4582 |
+| `p2mix` | stage 5 members 0-2 | Codabench submission 985438 | 26.4363 |
 
 **Inputs**
 * `--input_dir`: noisy test clips, 16 kHz mono WAV, one file per clip (`<clip_id>.wav`).
@@ -165,5 +164,5 @@ clean speech is never used in training (their noise recordings are among those t
 
 ## License
 
-Code and model weights: MIT (see `LICENSE`). `checkpoints/noise_bank.npz` is derived from the official IndoML 2026
+Code and model weights: MIT (see `LICENSE`). `checkpoints/reference_noise.npz` is derived from the official IndoML 2026
 validation release.

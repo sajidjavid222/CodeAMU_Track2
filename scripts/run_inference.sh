@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# CodeAMU - Track 2 Phase 2 inference (reproduces submission_t2_phase2_bankpost_p2mix.zip, Combined 26.4363).
+# CodeAMU - Track 2 Phase 2 inference (reproduces the final submission, Codabench ID 987258, Combined 26.4894).
 #   HF_TOKEN=hf_xxx bash scripts/run_inference.sh <input_audio_dir> <output_dir>
-# Optional: T1=<Track 1 predictions.jsonl> ROUTE=<route.json> VAL_DIR=<official validation folder (rebuilds the bank)>
+# Optional: T1=<Track 1 predictions.jsonl> ROUTE=<route.json> VAL_DIR=<official validation folder (rebuilds reference_noise.npz)>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IN="${1:?input audio dir}"; OUT="${2:?output dir}"

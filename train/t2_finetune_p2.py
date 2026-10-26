@@ -8,7 +8,7 @@ on Phase 1-style mixtures, so this fine-tunes them on mixtures drawn from the Ph
 
 Data (training fold only; the 138 held-out synthetic clips of track2_train.py are never used):
   clean beds : official train-fold clean refs (pool offc) 50%, Vaani speech 25%, gold clean 25%
-  noise      : validation noise recordings (models/noise_bank.npz) 70%, noise-event pool 30%,
+  noise      : validation noise recordings (models/reference_noise.npz) 70%, noise-event pool 30%,
                each with mild random alteration (FIR tilt, +-0.4% resample, -35 dB hiss)
 Same loss (-SI-SDR + 0.1 MR-STFT + 0.3 log-mel), AdamW, EMA and window augmentation as track2_train.py.
 
@@ -101,9 +101,9 @@ class Pool:
         return np.asarray(self._mm[r["o"]:r["o"] + r["n"]], dtype=np.float32) / 32768.0
 
 
-class Bank:
+class RefNoise:
     def __init__(self):
-        z = np.load(os.environ.get("T2_NOISE_BANK", f"{PROJ}/checkpoints/noise_bank.npz"))
+        z = np.load(os.environ.get("T2_REFERENCE_NOISE", f"{PROJ}/checkpoints/reference_noise.npz"))
         o, t = z["o16"], z["t16"]
         self.t = [t[o[i]:o[i + 1]] for i in range(len(o) - 1)]
 
@@ -125,7 +125,7 @@ def rms(x):
 class Mixer:
     def __init__(self, beds):
         self.beds = beds                               # list of (sampler weight, callable(rng) -> wav)
-        self.bank, self.ev = Bank(), Pool("event")
+        self.refnoise, self.ev = RefNoise(), Pool("event")
 
     def bed(self, rng, n):
         parts, tot = [], 0
@@ -142,7 +142,7 @@ class Mixer:
 
     def noise(self, rng):
         if rng.random() < 0.7:
-            t = self.bank.t[int(rng.integers(len(self.bank.t)))]
+            t = self.refnoise.t[int(rng.integers(len(self.refnoise.t)))]
         else:
             t = self.ev.get(int(rng.integers(len(self.ev.index))))
         t = np.asarray(t, np.float32)

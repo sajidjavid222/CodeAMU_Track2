@@ -749,7 +749,7 @@ def reset_pools(names):
 
 # ============================== OFFICIAL TRAIN FOLD -> pools ==============================
 # This cluster's COMPUTE NODES HAVE NO NETWORK (verified: huggingface.co http=000),
-# so the gold-bank and Vaani pool builds -- which stream parquet row-groups from
+# so the gold and Vaani pool builds -- which stream parquet row-groups from
 # the Hub -- can only run on the login node. Set T2_POOLS_READY=1 to reuse pools
 # that were built there, instead of wiping and rebuilding them.
 POOLS_READY = os.environ.get("T2_POOLS_READY", "0") == "1"
@@ -823,7 +823,7 @@ def cell_bytes(cell):
 def _truthy(v):
     return str(v).strip().lower() in ("true", "yes", "1", "y")
 
-# ============================== GOLD BANK (real events, clean gaps, in-domain floors) ==============================
+# ============================== GOLD POOL (real events, clean gaps, in-domain floors) ==============================
 def _spans(ts):
     out = []
     for s in (ts or []):
@@ -846,7 +846,7 @@ def _gaps(spans, dur, pad=0.05):
         free.append((cur, dur))
     return free
 
-def build_gold_bank():
+def build_gold_pool():
     rng = np.random.default_rng(SEED + 1)
     _, files = hf_ls(GOLD_REPO, "", recursive=True)
     files = [f for f in files if f.endswith(".parquet") and "test" not in f.lower()]
@@ -933,7 +933,7 @@ def build_gold_bank():
           f"gold speech {W_SP.seconds()/3600:.2f} h, floors {W_FLOOR.seconds('gold')/60:.1f} min")
     return district_counts
 
-GOLD_DISTRICTS = Counter() if POOLS_READY else build_gold_bank()
+GOLD_DISTRICTS = Counter() if POOLS_READY else build_gold_pool()
 print("top gold districts:", GOLD_DISTRICTS.most_common(8))
 
 # ============================== VAANI SPEECH + BACKGROUND POOL ==============================

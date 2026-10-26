@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 : "${T2_DATA:?folder with the official validation data}" "${HF_TOKEN:?HF token (Vaani datasets are gated)}"
 export T2_WORK="$ROOT/work/t2work" T2_BUDGET=omni T2_VAL_DIR="${T2_VAL_DIR:-$T2_DATA/validation}"
-export T2_POOLS="$T2_WORK/pools" T2_NOISE_BANK="$ROOT/checkpoints/noise_bank.npz"
+export T2_POOLS="$T2_WORK/pools" T2_REFERENCE_NOISE="$ROOT/checkpoints/reference_noise.npz"
 
 # stage 0: data pools (Vaani speech, gold events/floors, official train-fold pairs, harvested floors)
 T2_POOLS_ONLY=1 python train/track2_train.py

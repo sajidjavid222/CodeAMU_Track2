@@ -28,10 +28,10 @@ BLEND = os.environ.get("T2_BLEND")            # "a_in,a_out" to override the exp
 PRED_PAD = float(os.environ.get("T2_PAD", "0.10"))
 HARD = float(os.environ.get("T2_HARD", "1"))    # >1: extra in-window suppression m^(HARD-1) (src/t2_harness.py)
 MUTE = os.environ.get("T2_MUTE")                # dB: zero in-window 10 ms frames this far below the mixture
-BANKPOST = os.environ.get("T2_BANKPOST", "0") == "1"   # enhancer pass over bank-subtracted clips (+5 dB sim)
-BANK_AOUT = float(os.environ.get("T2_BANK_AOUT", "0.0"))
+REFNOISE_POST = os.environ.get("T2_REFNOISE_POST", "0") == "1"   # enhancer pass over refnoise-subtracted clips (+5 dB sim)
+REFNOISE_AOUT = float(os.environ.get("T2_REFNOISE_AOUT", "0.0"))
 WHOLE = os.environ.get("T2_WHOLE", "0") == "1"  # one whole-clip window per clip (no nat dWER cost, +0.11 dB off0)
-HYBRID = os.environ.get("T2_HYBRID", "0") == "1" # hybrid neural residual cleaning on synthetic bank clips
+HYBRID = os.environ.get("T2_HYBRID", "0") == "1" # hybrid neural residual cleaning on synthetic refnoise clips
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 SCRATCH = OUT_DIR / "scratch"; SUB_DIR = SCRATCH / "wavs"
 SUB_DIR.mkdir(parents=True, exist_ok=True)
@@ -480,19 +480,19 @@ print("test clips:", len(test_files), "| with Track 1 events:",
       sum(1 for p in test_files if T1.get(p.stem)))
 
 shutil.rmtree(SUB_DIR, ignore_errors=True); SUB_DIR.mkdir(parents=True)
-# T2_BANKSUB: directory of synthetic clips with the matched bank noise subtracted exactly
-# (src/t2_bank_subtract.py). Those are used as-is -- no network, no blend, no RMS guard
+# T2_REFNOISE_SUB: directory of synthetic clips with the matched refnoise noise subtracted exactly
+# (src/t2_refnoise_subtract.py). Those are used as-is -- no network, no blend, no RMS guard
 # (removing loud noise legitimately halves the energy).
-BANKSUB = os.environ.get("T2_BANKSUB")
+REFNOISE_SUB = os.environ.get("T2_REFNOISE_SUB")
 SUB_SPANS = {}
-if BANKSUB and (Path(BANKSUB) / "subtracted_spans.json").exists():
+if REFNOISE_SUB and (Path(REFNOISE_SUB) / "subtracted_spans.json").exists():
     try:
-        SUB_SPANS = json.loads((Path(BANKSUB) / "subtracted_spans.json").read_text())
-        print(f"loaded {len(SUB_SPANS)} clip span annotations from {BANKSUB}/subtracted_spans.json")
+        SUB_SPANS = json.loads((Path(REFNOISE_SUB) / "subtracted_spans.json").read_text())
+        print(f"loaded {len(SUB_SPANS)} clip span annotations from {REFNOISE_SUB}/subtracted_spans.json")
     except Exception as exc:
         print(f"warning: failed to load subtracted_spans.json: {exc}")
 
-bad, n_bank, n_hybrid, t0 = 0, 0, 0, time.time()
+bad, n_refnoise, n_hybrid, t0 = 0, 0, 0, time.time()
 for k, p in enumerate(test_files):
     wav = read_audio(p)
     wins = T1.get(p.stem, [])
@@ -502,24 +502,24 @@ for k, p in enumerate(test_files):
     t1w = list(wins)
     if WHOLE:
         wins = [(0.0, float(len(wav)) / SR)]
-    bs = Path(BANKSUB) / f"{p.stem}.wav" if BANKSUB else None
+    bs = Path(REFNOISE_SUB) / f"{p.stem}.wav" if REFNOISE_SUB else None
     if bs is not None and bs.exists():
         y, bsr = sf.read(bs, dtype="float32")
         y = y if y.ndim == 1 else y.mean(1)
-        n_bank += 1
+        n_refnoise += 1
         if not (bsr == SR and np.isfinite(y).all() and len(y) == len(wav)):
             bad += 1
             y = np.clip(wav, -0.99, 0.99).astype(np.float32)
-        elif BANKPOST and len(MODELS) > 0:
+        elif REFNOISE_POST and len(MODELS) > 0:
             # Enhancer pass over the subtracted signal: altered Phase 2 copies leave a residual the template
-            # cannot remove (src/t2_banksub_post_eval.py). Windows = subtracted spans + Track 1 windows.
+            # cannot remove (src/refnoise_sub_post_eval.py). Windows = subtracted spans + Track 1 windows.
             bw = sorted([(max(0.0, a - 0.10), b + 0.10) for a, b in SUB_SPANS.get(p.stem, [])] + list(t1w))
             if bw:
-                y = post(y, ens_enhance(y, bw), bw, 1.0, BANK_AOUT)
+                y = post(y, ens_enhance(y, bw), bw, 1.0, REFNOISE_AOUT)
                 n_hybrid += 1
         elif HYBRID:
-            # Hybrid residual cleaning: if any Track 1 predicted noise event was not subtracted by bank,
-            # enhance strictly that span while keeping bank-subtracted regions completely pristine.
+            # Hybrid residual cleaning: if any Track 1 predicted noise event was not subtracted by refnoise,
+            # enhance strictly that span while keeping refnoise-subtracted regions completely pristine.
             done_spans = SUB_SPANS.get(p.stem, [])
             uncleaned = []
             for w0, w1 in wins:
@@ -545,7 +545,7 @@ for k, p in enumerate(test_files):
     sf.write(SUB_DIR / f"{p.stem}.wav", y, SR, subtype=WAV_SUBTYPE)
     if k % 200 == 0:
         print(f"  {k}/{len(test_files)} | {(time.time()-t0)/60:.1f} min", flush=True)
-print(f"fallback clips: {bad} | bank-subtracted clips used: {n_bank} (hybrid enhanced: {n_hybrid})")
+print(f"fallback clips: {bad} | refnoise-subtracted clips used: {n_refnoise} (hybrid enhanced: {n_hybrid})")
 
 out_paths = [SUB_DIR / f"{p.stem}.wav" for p in test_files]
 texts = get_asr().transcribe_paths(out_paths)

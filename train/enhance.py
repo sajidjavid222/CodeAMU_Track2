@@ -1,5 +1,5 @@
 """Track 2 neural enhancer (TF-DPCRN, 3-model ensemble), used for clips routed as NATURAL and
-for synthetic clips where no bank recording was found. Conditioned on Track 1 event windows.
+for synthetic clips where no refnoise recording was found. Conditioned on Track 1 event windows.
 Code copied verbatim from the inference script that produced the leaderboard submission.
 """
 import numpy as np

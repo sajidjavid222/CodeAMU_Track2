@@ -1,9 +1,9 @@
-"""Exact subtraction of matched bank copies (Track 2, Phase 2).
+"""Exact subtraction of matched refnoise copies (Track 2, Phase 2).
 
-For every bank match with correlation >= TH (0.45), strongest first: refine the placement by +-32 samples on the
+For every refnoise match with correlation >= TH (0.45), strongest first: refine the placement by +-32 samples on the
 double pre-emphasised signal, fit a non-negative scalar gain by least squares on the whitened signals, and
 subtract gain * template (raw 16 kHz noise of that recording). Phase 2 copies are slightly altered (~-26 dB off
-the validation originals), so a residual remains; inference/enhance_and_transcribe.py (T2_BANKPOST=1) cleans it.
+the validation originals), so a residual remains; inference/enhance_and_transcribe.py (T2_REFNOISE_POST=1) cleans it.
 
 Writes <out_dir>/<clip>.wav (float32) and <out_dir>/subtracted_spans.json {clip: [[onset, offset], ...]}.
 """
@@ -61,7 +61,7 @@ def run(audio_dir, matches, templates16, out_dir, th=TH):
     os.makedirs(out_dir, exist_ok=True)
     jobs = [(c, [m for m in ms if m["cor"] >= th]) for c, ms in sorted(matches.items())]
     jobs = [(c, ms) for c, ms in jobs if ms]
-    print(f"bank subtraction: {len(jobs)} clips", flush=True)
+    print(f"refnoise subtraction: {len(jobs)} clips", flush=True)
     spans, t0 = {}, time.time()
     for i, (cid, ms) in enumerate(jobs):
         p = os.path.join(audio_dir, f"{cid}.wav")
