@@ -18,7 +18,7 @@ noisy clip ──► TF-DPCRN ensemble (3 members), conditioned on the Track 1 e
 ```
 
 Pre-step on clips routed synthetic: copies of validation-release noise recordings are removed before enhancement, and
-the enhancer then runs over those spans and the Track 1 windows (described in the report, Sec. V-D).
+the enhancer then runs over those spans and the Track 1 windows (disclosed in the report, Sec. V-D).
 
 * **Enhancer** — TF-DPCRN (3.9 M parameters per member): power-law compressed complex STFT (n_fft 512, hop 128) plus a
   per-frame noise-event indicator in, a convolutional encoder (48/64/96/128 channels), 5 dual-path blocks (frequency
