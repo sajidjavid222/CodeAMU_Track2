@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CodeAMU - Track 2: full training chain of checkpoints/t2_model_{0,1,2}.pt (see train/config.yaml).
+# CodeAMU - Track 2: full training chain of the enhancer ensembles in checkpoints/enhancer/ (see train/config.yaml).
 # Each python call below ran as one job on a 6 h queue (1x NVIDIA H200 MIG 3g.71gb slice, 10 CPU, 60 GB RAM).
 #   T2_DATA=<folder holding the official Track 2 validation data> HF_TOKEN=hf_xxx bash scripts/train_all.sh
 set -euo pipefail
@@ -31,5 +31,16 @@ for K in 0 1 2; do
   T2FT_INIT=work/t2_p2ft_long/export T2FT_OUT=work/t2_p2mix T2FT_ONLY=$K T2FT_REAL=${REAL[$K]} T2FT_MIN=240 T2FT_LR=1e-4 \
       T2FT_SELECT=fit python train/t2_finetune_p2.py
 done
-cp work/t2_p2mix/export/t2_model_*.pt checkpoints/
-echo "final models -> checkpoints/t2_model_{0,1,2}.pt"
+mkdir -p checkpoints/enhancer/p2mix checkpoints/enhancer/asrbt checkpoints/enhancer/sisdr5
+cp work/t2_p2mix/export/t2_model_*.pt checkpoints/enhancer/p2mix/
+
+# stage 6: ASR-oriented continuation of the p2mix members (log-mel weight 1.2), all three members in one job
+T2FT_INIT=work/t2_p2mix/export T2FT_OUT=work/t2_p2mix_asr T2FT_MIN=40 T2FT_LR=1e-4 T2FT_WMEL=1.2 T2FT_REAL=0.4 \
+    T2FT_SELECT=fit python train/t2_finetune_p2.py
+cp work/t2_p2mix_asr/export/t2_model_*.pt checkpoints/enhancer/asrbt/
+
+# sisdr5: the five distinct models of p2mix + asrbt (asrbt member 1 was identical to p2mix member 1)
+for i in 0 1 2; do cp work/t2_p2mix/export/t2_model_$i.pt checkpoints/enhancer/sisdr5/t2_model_$i.pt; done
+cp work/t2_p2mix_asr/export/t2_model_0.pt checkpoints/enhancer/sisdr5/t2_model_3.pt
+cp work/t2_p2mix_asr/export/t2_model_2.pt checkpoints/enhancer/sisdr5/t2_model_4.pt
+echo "ensembles -> checkpoints/enhancer/{p2mix,asrbt,sisdr5}/"

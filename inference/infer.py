@@ -3,12 +3,17 @@
 
     python inference/infer.py --input_dir <test audio dir> --output_dir <out dir> \
         [--t1_predictions inputs/phase2/track1_predictions.jsonl] [--route inputs/phase2/route.json] \
-        [--checkpoints checkpoints] [--val_dir <official validation dir>] [--work_dir work]
+        [--checkpoints checkpoints] [--enhancer p2mix|asrbt|sisdr5] [--val_dir <official validation dir>] [--work_dir work]
 
-Pipeline (reproduces submission_t2_phase2_bankpost_p2mix.zip, Combined 26.4363):
+Enhancer ensembles (checkpoints/enhancer/<name>/t2_model_*.pt; each reproduces one Phase 2 submission exactly):
+  asrbt  : p2mix after 40 more minutes with log-mel weight 1.2 (stage 6)  -> bankpost_asrbt, 26.4894 (FINAL, 1st)
+  p2mix  : the 3 Phase 2-profile members with real organiser pairs (stage 5)      -> bankpost_p2mix, 26.4363
+  sisdr5 : the 5 distinct models of p2mix + asrbt (asrbt member 1 = p2mix member 1) -> bankpost_sisdr5, 26.4582
+
+Pipeline:
   1. bank matching    : clips routed synthetic are matched against the validation noise bank (inference/bank.py)
   2. bank subtraction : every match with cor >= 0.45 is subtracted with a fitted gain (inference/bank_subtract.py)
-  3. enhancement + ASR: the 3-model TF-DPCRN ensemble (checkpoints/t2_model_*.pt) enhances every clip conditioned on
+  3. enhancement + ASR: the TF-DPCRN ensemble (checkpoints/enhancer/<name>/) enhances every clip conditioned on
      the Track 1 event windows; bank-subtracted clips get an enhancer pass over their subtracted spans + Track 1
      windows (T2_BANKPOST=1); the mandated ASR (ARTPARK-IISc/SraVaani-1.0) transcribes the enhanced audio
      (inference/enhance_and_transcribe.py). Output: one 16 kHz PCM_16 WAV per clip + transcripts.jsonl +
@@ -20,6 +25,9 @@ import json
 import os
 import subprocess
 import sys
+
+ENHANCERS = ("asrbt", "p2mix", "sisdr5")
+FINAL_ENHANCER = "asrbt"            # the ranked final submission (Codabench ID 987258, Combined 26.4894)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -34,7 +42,8 @@ def main():
                     help="Track 1 noise-event timestamps (predictions.jsonl from the CodeAMU Track 1 system)")
     ap.add_argument("--route", default=f"{ROOT}/inputs/phase2/route.json",
                     help="{clip_id: true|false} synthetic routing from the Track 1 router")
-    ap.add_argument("--checkpoints", default=f"{ROOT}/checkpoints")
+    ap.add_argument("--checkpoints", default=f"{ROOT}/checkpoints", help="noise_bank.npz + enhancer/<name>/")
+    ap.add_argument("--enhancer", default=FINAL_ENHANCER, choices=ENHANCERS, help="enhancer ensemble (see above)")
     ap.add_argument("--val_dir", default=None,
                     help="official validation folder; if given the bank is rebuilt from it, else checkpoints/noise_bank.npz")
     ap.add_argument("--work_dir", default=f"{ROOT}/work")
@@ -58,7 +67,8 @@ def main():
     if not os.path.exists(f"{sub_dir}/subtracted_spans.json"):
         bank_subtract.run(args.input_dir, matches, templates16, sub_dir)
     print("[3/3] enhancement + mandated ASR", flush=True)
-    env = dict(os.environ, T2_TEST=args.input_dir, T2_T1=args.t1_predictions, T2_CKPT=args.checkpoints,
+    env = dict(os.environ, T2_TEST=args.input_dir, T2_T1=args.t1_predictions,
+               T2_CKPT=f"{args.checkpoints}/enhancer/{args.enhancer}",
                T2_OUT=args.output_dir, T2_BLEND="1.0,0.90", T2_PAD="0.10", T2_HARD="1.0", T2_WHOLE="0",
                T2_BANKSUB=sub_dir, T2_BANKPOST="1", T2_BANK_AOUT="0.0")
     env.pop("T2_MUTE", None); env.pop("T2_HYBRID", None)

@@ -59,7 +59,7 @@ ONLY = os.environ.get("T2FT_ONLY")                  # train just this model inde
 # (T2FT_REAL = probability per example) and select checkpoints by the fitted score, not by p2h alone.
 P_REAL = float(os.environ.get("T2FT_REAL", "0"))
 W_OFF0, W_P2H = 1.53, 0.27
-# Checkpoint selection: "fit" (default, used for the final p2mix stage) = W_OFF0*SI-SDR(off0[:70]) + W_P2H*SI-SDR(p2h[:40]);
+# Checkpoint selection: "fit" (default, used for the p2mix and asrbt stages) = W_OFF0*SI-SDR(off0[:70]) + W_P2H*SI-SDR(p2h[:40]);
 # "p2h" = SI-SDR(p2h[:40]) only, as used by the earlier stages p2ft / p2ft_cont / p2ft_long.
 SELECT = os.environ.get("T2FT_SELECT", "fit")
 # ASR-guided term: our synthetic dWER is 6.7 vs 11.5-17.4 for the top teams, and on off0 we reach only half

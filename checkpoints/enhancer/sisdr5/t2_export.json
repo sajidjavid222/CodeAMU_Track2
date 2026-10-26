@@ -1,0 +1,13 @@
+{
+ "a_in": 1.0,
+ "a_out": 0.9,
+ "n_fft": 512,
+ "hop": 128,
+ "sr": 16000,
+ "members": [
+  "work/t2_p2mix/export/t2_model_0.pt",
+  "work/t2_p2mix/export/t2_model_1.pt",
+  "work/t2_p2mix/export/t2_model_2.pt"
+ ],
+ "proxy": 16.0
+}

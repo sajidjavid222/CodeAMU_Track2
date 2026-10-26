@@ -4,7 +4,9 @@
 Osama Zaheer (Binary Semantics), Ahraz Shamim (Vecmocon Technologies)
 **Primary contact:** Sajid Javid — sajidj@iiitd.ac.in
 
-**Final standing: 1st place, Phase 2 (final) leaderboard — Combined 26.4363** (`submission_t2_phase2_bankpost_p2mix.zip`).
+**Final standing: 1st place, Phase 2 (final) leaderboard — Combined 26.4894** (SI-SDR 20.3393 dB; ΔWER 6.1501 points:
+synthetic 18.0882, natural 0.5232; transcript audit passed), submission `submission_t2_phase2_bankpost_asrbt.zip`
+(Codabench ID 987258).
 Technical report: [`docs/CodeAMU_track_2_1.pdf`](docs/CodeAMU_track_2_1.pdf).
 Companion Track 1 system (event windows and routing used as inputs here): <https://github.com/sajidjavid222/CodeAMU_Track1>.
 
@@ -22,9 +24,9 @@ noisy clip ──► [route: synthetic? (Track 1 router)] ──yes──► ban
 * **Enhancer** — TF-DPCRN (3.9 M parameters per member): power-law compressed complex STFT (n_fft 512, hop 128) plus a
   per-frame noise-event indicator in, a convolutional encoder (48/64/96/128 channels), 5 dual-path blocks (frequency
   BiLSTM, time BiLSTM, frequency-pooled self-attention), a transposed-convolution decoder with skips, and a bounded
-  complex ratio mask out. Three members, polarity-aligned waveform averaging. Trained from scratch (no pretrained
-  weights) on our own mixtures and the official training-fold pairs, then fine-tuned on mixtures that follow the
-  Phase 2 test statistics (see `train/config.yaml`).
+  complex ratio mask out. Ensembles of 3 or 5 members (`checkpoints/enhancer/`), polarity-aligned waveform averaging. Trained from scratch (no pretrained
+  weights) on our own mixtures and the official training-fold pairs, fine-tuned on mixtures that follow the
+  Phase 2 test statistics, and finally continued for 40 min with a heavier log-mel loss (see `train/config.yaml`).
 * **Noise bank** — the official validation release ships the clean reference of every synthetic clip, so
   noise = mixture − clean at the labelled timestamps gives the organisers' noise pool: 2,213 labelled events →
   1,181 distinct recordings (`checkpoints/noise_bank.npz`, bit-identical to rebuilding it from the validation folder).
@@ -50,8 +52,9 @@ CodeAMU_Track2/
 │   ├── config.yaml                 # every training stage, exactly as run
 │   └── val_t1_predictions.jsonl    # Track 1 windows for the validation set (checkpoint selection)
 ├── checkpoints/
-│   ├── t2_model_{0,1,2}.pt         # FINAL enhancer ensemble (15.6 MB each)
-│   ├── t2_export.json
+│   ├── enhancer/p2mix/             # 3-member TF-DPCRN ensemble (stage 5; 15.6 MB per member)
+│   ├── enhancer/asrbt/             # FINAL: the same members after stage 6 (member 1 unchanged)
+│   ├── enhancer/sisdr5/            # the 5 distinct models of p2mix + asrbt
 │   └── noise_bank.npz              # validation noise bank (75 MB)
 ├── configs/model_config.yaml       # architecture + inference settings
 ├── inputs/phase2/
@@ -99,8 +102,18 @@ bash scripts/run_inference.sh /path/to/phase2/audio /path/to/output
 # equivalent:
 python inference/infer.py --input_dir /path/to/phase2/audio --output_dir /path/to/output \
     --t1_predictions inputs/phase2/track1_predictions.jsonl --route inputs/phase2/route.json \
+    [--enhancer p2mix|asrbt|sisdr5] \
     [--val_dir /path/to/validation]      # optional: rebuild the noise bank from the official validation folder
 ```
+
+`--enhancer` picks the ensemble (`ENHANCER=...` for `run_inference.sh`); the default `asrbt` is the ranked final.
+Each ensemble reproduces one Phase 2 submission:
+
+| `--enhancer` | Models | Reproduces | Leaderboard |
+|---|---|---|---|
+| `asrbt` (default) | stage 6 members 0-2 | `submission_t2_phase2_bankpost_asrbt.zip` (ID 987258) | **26.4894, final** |
+| `sisdr5` | stage 5 members 0-2 + stage 6 members 0, 2 | `submission_t2_phase2_bankpost_sisdr.zip` (ID 987250) | 26.4582 |
+| `p2mix` | stage 5 members 0-2 | `submission_t2_phase2_bankpost_p2mix.zip` (ID 985438) | 26.4363 |
 
 **Inputs**
 * `--input_dir`: noisy test clips, 16 kHz mono WAV, one file per clip (`<clip_id>.wav`).
@@ -120,9 +133,9 @@ reproduces both shipped files byte for byte (3,178 clips, 1,635 routed synthetic
 * `transcripts.jsonl`: `{"clip_id": ..., "text": ...}` per clip, from SraVaani-1.0 on the enhanced audio.
 * `submission.zip`: all WAVs + `transcripts.jsonl` at the zip root (Codabench format).
 
-**Reproduction check.** Running `inference/infer.py` (what `scripts/run_inference.sh` calls) on the Phase 2 test audio (one H200
-`3g.71gb` slice, 49 min) regenerates the submitted zip exactly: all 3,178 WAVs are bit-identical to the submitted
-ones and all 3,178 transcripts are identical.
+**Reproduction check.** Running `inference/infer.py` (what `scripts/run_inference.sh` calls) on the Phase 2 test audio
+(one H200 `3g.71gb` slice, about 40-50 min) regenerates each of the three submissions above exactly: for `asrbt`,
+`sisdr5` and `p2mix`, all 3,178 WAVs are bit-identical to the submitted ones and all 3,178 transcripts are identical.
 
 ## Training
 
@@ -139,7 +152,8 @@ bash scripts/train_all.sh
 | 2 | `t2_finetune_p2.py` | p2ft: Phase 2-profile mixtures, 40 min / member, lr 2e-4 | ≈2.5 h |
 | 3 | `t2_finetune_p2.py` | p2ft_cont: 45 min / member, lr 1e-4 | ≈2.5 h |
 | 4 | `t2_finetune_p2.py` × 3 | p2ft_long: 300 min / member, lr 1e-4 | 3 × ≈5.5 h |
-| 5 | `t2_finetune_p2.py` × 3 | p2mix (final): 240 min / member, lr 1e-4, real organiser pairs 30 / 50 / 30 % | 3 × ≈4.5 h |
+| 5 | `t2_finetune_p2.py` × 3 | p2mix: 240 min / member, lr 1e-4, real organiser pairs 30 / 50 / 30 % | 3 × ≈4.5 h |
+| 6 | `t2_finetune_p2.py` | asrbt (final): 40 min / member from p2mix, log-mel weight 1.2, lr 1e-4, real pairs 40 % | ≈2.5 h |
 
 Losses, mixture statistics, window augmentation, EMA, schedule and checkpoint selection are listed in
 `train/config.yaml`. Held-out evaluation uses the 138 official synthetic pairs of filename-prefix fold 0, whose

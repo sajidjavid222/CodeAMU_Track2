@@ -1,6 +1,8 @@
-# CodeAMU - IndoML 2026 Track 2 final system (Phase 2 submission, Combined 26.4363)
+# CodeAMU - IndoML 2026 Track 2 final system (Phase 2 submission bankpost_asrbt, Codabench ID 987258, Combined 26.4894)
 
-enhancer:                         # checkpoints/t2_model_{0,1,2}.pt, 3-member ensemble
+enhancer:                         # checkpoints/enhancer/<name>/t2_model_*.pt, chosen with infer.py --enhancer
+  final: asrbt                    # default of inference/infer.py --enhancer
+  ensembles: {asrbt: 3 members (stage 6), p2mix: 3 members (stage 5), sisdr5: 5 members (p2mix + asrbt 0, 2)}
   type: TF-DPCRN                  # complex-spectrum U-Net encoder/decoder + dual-path (intra/inter) LSTM + attention
   n_fft: 512
   hop: 128

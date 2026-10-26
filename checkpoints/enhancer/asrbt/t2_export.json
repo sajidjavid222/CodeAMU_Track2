@@ -1,0 +1,25 @@
+{
+ "a_in": 1.0,
+ "a_out": 0.9,
+ "n_fft": 512,
+ "hop": 128,
+ "sr": 16000,
+ "members": [
+  "work/t2_p2mix/export/t2_model_0.pt",
+  "work/t2_p2mix/export/t2_model_1.pt",
+  "work/t2_p2mix/export/t2_model_2.pt"
+ ],
+ "proxy": 16.0,
+ "finetune": "phase2-profile",
+ "p2": {
+  "rate": 0.47,
+  "p_silence": 0.1,
+  "snr_mu": -9.7,
+  "snr_sd": 4.0,
+  "mix_db": -22.8,
+  "max_ev": 4.0
+ },
+ "init": "/home/sajidj/ICASSP/New_Folder/IndoML2026_Track1/work/t2_p2mix/export",
+ "w_mel": 1.2,
+ "lr": 0.0001
+}

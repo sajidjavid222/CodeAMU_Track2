@@ -1,5 +1,5 @@
-# CodeAMU - IndoML 2026 Track 2: training configuration of the final enhancer ensemble
-# (checkpoints/t2_model_{0,1,2}.pt). Every stage below is exactly what produced the submitted models;
+# CodeAMU - IndoML 2026 Track 2: training configuration of the enhancer ensembles
+# (checkpoints/enhancer/{p2mix,asrbt,sisdr5}/). Every stage below is exactly what produced the submitted models;
 # the shell commands are in scripts/train_all.sh. All stages: TF-DPCRN, see configs/model_config.yaml.
 
 stage0_pools:            # data pools for every later stage (train/track2_train.py, first part)
@@ -35,9 +35,18 @@ stage3_p2ft_cont:
   env: {T2FT_INIT: work/t2_p2ft/export, T2FT_OUT: work/t2_p2ft_cont, T2FT_MIN: "45", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: p2h}
 stage4_p2ft_long:        # one job per member (T2FT_ONLY=0/1/2)
   env: {T2FT_INIT: work/t2_p2ft_cont/export, T2FT_OUT: work/t2_p2ft_long, T2FT_MIN: "300", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: p2h}
-stage5_p2mix:            # FINAL models; one job per member, real organiser train-fold pairs mixed into the batches
+stage5_p2mix:            # one job per member, real organiser train-fold pairs mixed into the batches
   env: {T2FT_INIT: work/t2_p2ft_long/export, T2FT_OUT: work/t2_p2mix, T2FT_MIN: "240", T2FT_LR: "1e-4", T2FT_WMEL: "0.3", T2FT_SELECT: fit}
   per_member: {T2FT_ONLY: [0, 1, 2], T2FT_REAL: [0.3, 0.5, 0.3]}
   common: {batch_size: 16, crop_sec: 8.0, optimizer: AdamW(wd 1e-4, betas 0.9/0.98), warmup_steps: 300,
            schedule: cosine to 3 %, ema: "min(0.999, (1 + step) / (10 + step))", grad_clip: 5.0, amp: bf16}
-  output: work/t2_p2mix/export -> checkpoints/t2_model_{0,1,2}.pt
+  output: work/t2_p2mix/export -> checkpoints/enhancer/p2mix/
+stage6_p2mix_asr:        # FINAL models (asrbt): ASR-oriented continuation of the p2mix members, one job (40 min each)
+  env: {T2FT_INIT: work/t2_p2mix/export, T2FT_OUT: work/t2_p2mix_asr, T2FT_MIN: "40", T2FT_LR: "1e-4", T2FT_WMEL: "1.2",
+        T2FT_REAL: "0.4", T2FT_SELECT: fit}
+  note: member 1 never beat its starting fit-score, so asrbt member 1 is byte-identical to p2mix member 1
+  output: work/t2_p2mix_asr/export -> checkpoints/enhancer/asrbt/
+ensembles:               # inference/infer.py --enhancer <name>; model order = file order t2_model_0, 1, ...
+  p2mix: [stage5 member 0, member 1, member 2]
+  asrbt: [stage6 member 0, member 1, member 2]
+  sisdr5: [stage5 member 0, member 1, member 2, stage6 member 0, stage6 member 2]   # the 5 distinct models
