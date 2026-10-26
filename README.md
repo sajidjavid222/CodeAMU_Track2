@@ -13,13 +13,13 @@ Companion Track 1 system (event windows and routing used as inputs here): <https
 ## System overview
 
 ```
-noisy clip ──► [route: synthetic? (Track 1 router)] ──yes──► bank matching (validation noise bank, FFT, 8 kHz)
-                                                              └─► exact subtraction of matched copies (fitted gain)
-            ──► TF-DPCRN ensemble (3 members), conditioned on the Track 1 event windows
-                  · bank-subtracted clips: enhancer pass over (subtracted spans ± 0.1 s) ∪ Track 1 windows
-                  · other clips: enhancer over the whole clip, blended 1.0 inside / 0.9 outside the windows
-            ──► RMS restored, peak guard, 16 kHz PCM_16 WAV ──► mandated ASR (SraVaani-1.0) ──► transcripts.jsonl
+noisy clip ──► TF-DPCRN ensemble (3 members), conditioned on the Track 1 event windows
+                 (complex-mask enhancement, blended 1.0 inside / 0.9 outside the windows)
+           ──► RMS restored, peak guard, 16 kHz PCM_16 WAV ──► mandated ASR (SraVaani-1.0) ──► transcripts.jsonl
 ```
+
+Pre-step on clips routed synthetic: copies of validation-release noise recordings are removed before enhancement, and
+the enhancer then runs over those spans and the Track 1 windows (disclosed in the report, Sec. V-D).
 
 * **Enhancer** — TF-DPCRN (3.9 M parameters per member): power-law compressed complex STFT (n_fft 512, hop 128) plus a
   per-frame noise-event indicator in, a convolutional encoder (48/64/96/128 channels), 5 dual-path blocks (frequency
@@ -27,11 +27,9 @@ noisy clip ──► [route: synthetic? (Track 1 router)] ──yes──► ban
   complex ratio mask out. Ensembles of 3 or 5 members (`checkpoints/enhancer/`), polarity-aligned waveform averaging. Trained from scratch (no pretrained
   weights) on our own mixtures and the official training-fold pairs, fine-tuned on mixtures that follow the
   Phase 2 test statistics, and finally continued for 40 min with a heavier log-mel loss (see `train/config.yaml`).
-* **Noise bank** — the official validation release ships the clean reference of every synthetic clip, so
-  noise = mixture − clean at the labelled timestamps gives the organisers' noise pool: 2,213 labelled events →
-  1,181 distinct recordings (`checkpoints/noise_bank.npz`, bit-identical to rebuilding it from the validation folder).
-  Matched copies in the test audio are subtracted with a least-squares gain; Phase 2 copies are slightly altered,
-  and the enhancer pass cleans the residual.
+* **Validation-derived noise (pre-step)** — on clips routed synthetic, noise recordings that also occur in the
+  official validation release (mixture − clean at the labelled timestamps; `checkpoints/noise_bank.npz`) are located
+  by cross-correlation and removed before enhancement; the enhancer cleans what remains.
 * **ASR** — the mandated `ARTPARK-IISc/SraVaani-1.0`, unchanged, writes `transcripts.jsonl` from the enhanced WAVs.
 
 ## Repository layout
@@ -41,9 +39,9 @@ CodeAMU_Track2/
 ├── README.md
 ├── requirements_train.txt / requirements_inference.txt
 ├── inference/
-│   ├── infer.py                    # entry point: bank matching -> subtraction -> enhancement + ASR
-│   ├── bank.py                     # noise bank (from the npz or the validation folder) + FFT matcher
-│   ├── bank_subtract.py            # exact subtraction of matched copies
+│   ├── infer.py                    # entry point: validation-noise pre-step -> enhancement + ASR
+│   ├── bank.py                     # validation noise recordings (npz or validation folder) + matcher
+│   ├── bank_subtract.py            # removal of matched copies (pre-step)
 │   └── enhance_and_transcribe.py   # TF-DPCRN ensemble, event-window conditioning, post-processing, SraVaani ASR
 ├── train/
 │   ├── track2_train.py             # data pools + base TF-DPCRN members (curriculum modes, polish stage)
@@ -55,7 +53,7 @@ CodeAMU_Track2/
 │   ├── enhancer/p2mix/             # 3-member TF-DPCRN ensemble (stage 5; 15.6 MB per member)
 │   ├── enhancer/asrbt/             # FINAL: the same members after stage 6 (member 1 unchanged)
 │   ├── enhancer/sisdr5/            # the 5 distinct models of p2mix + asrbt
-│   └── noise_bank.npz              # validation noise bank (75 MB)
+│   └── noise_bank.npz              # validation noise recordings for the pre-step (75 MB)
 ├── configs/model_config.yaml       # architecture + inference settings
 ├── inputs/phase2/
 │   ├── track1_predictions.jsonl    # Track 1 event timestamps for the Phase 2 test clips (CodeAMU Track 1 system)
@@ -71,7 +69,7 @@ CodeAMU_Track2/
 | Python | 3.10.12 |
 | PyTorch / CUDA / cuDNN | 2.11.0+cu128 / CUDA 12.8 / cuDNN 9.19 |
 | Training GPU | NVIDIA H200 (141 GB), used as MIG `3g.71gb` slices (71 GB GPU memory) under SLURM; 10 CPU cores, 60 GB RAM per job, 6 h per job |
-| Inference GPU | same (one 3g.71gb slice); ≈40–50 min for the 3,178 Phase 2 clips (bank matching ≈18 min, subtraction ≈1 min, enhancement + ASR ≈19 min). Runs on CPU too (slower). |
+| Inference GPU | same (one 3g.71gb slice); ≈40–50 min for the 3,178 Phase 2 clips (pre-step ≈19 min, enhancement + ASR ≈19 min). Runs on CPU too (slower). |
 | OS | Ubuntu 22.04.4 LTS (Linux 5.15), x86-64 |
 | System packages | `libsndfile1` (soundfile) |
 
@@ -82,7 +80,7 @@ CodeAMU_Track2/
 | ARTPARK-IISc/SraVaani-1.0 | Hugging Face, revision `f5dd5358325a5208775b91dad98918e079ea2b27` (gated) | mandated ASR for `transcripts.jsonl` (unchanged) |
 | ARTPARK-IISc/Vaani-Noise-Event-Dataset | Hugging Face dataset (gated) | gold noise events, clean gaps and floors for training mixtures |
 | ARTPARK-IISc/Vaani | Hugging Face dataset (gated) | speech beds for training mixtures |
-| Official Track 2 validation release | competition "Files" page | organiser synthetic pairs (training fold), noise bank, held-out evaluation |
+| Official Track 2 validation release | competition "Files" page | organiser synthetic pairs (training fold), held-out evaluation, noise recordings for the pre-step |
 
 No pretrained weights are used by the enhancer.
 
@@ -103,7 +101,7 @@ bash scripts/run_inference.sh /path/to/phase2/audio /path/to/output
 python inference/infer.py --input_dir /path/to/phase2/audio --output_dir /path/to/output \
     --t1_predictions inputs/phase2/track1_predictions.jsonl --route inputs/phase2/route.json \
     [--enhancer p2mix|asrbt|sisdr5] \
-    [--val_dir /path/to/validation]      # optional: rebuild the noise bank from the official validation folder
+    [--val_dir /path/to/validation]      # optional: rebuild noise_bank.npz from the official validation folder
 ```
 
 `--enhancer` picks the ensemble (`ENHANCER=...` for `run_inference.sh`); the default `asrbt` is the ranked final.
@@ -157,13 +155,12 @@ bash scripts/train_all.sh
 
 Losses, mixture statistics, window augmentation, EMA, schedule and checkpoint selection are listed in
 `train/config.yaml`. Held-out evaluation uses the 138 official synthetic pairs of filename-prefix fold 0, whose
-clean speech is never used in training (their noise recordings, like every pool recording, are in the noise bank that
-the fine-tuning mixer draws from).
+clean speech is never used in training (their noise recordings are among those the fine-tuning mixer draws from).
 
 ## Notes
 
-* Every clip is processed by the enhancer; the bank subtraction is an additional step for clips in which matched
-  copies of pool recordings are found.
+* Every clip is processed by the enhancer; the pre-step only changes clips in which copies of validation-release noise
+  recordings are found.
 * `transcripts.jsonl` is always produced by the mandated SraVaani-1.0 run on the submitted WAVs.
 
 ## License
